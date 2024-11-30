@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        #video-stream {
+            max-width: 100%;
+            height: auto;
+        }
+        .slider {
+            width: 100%;
+        }
+        .alert {
+            margin-top: 20px;
+        }
+        .sensor-card {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .sensor-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 text-center">
+                <h1 class="display-4">Video Stream từ Camera</h1>
+                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream" class="img-fluid rounded">
+                <div id="alert" class="alert alert-danger" style="display: none;">🔥 Phát hiện cháy! 🔥</div>
+                <input type="range" min="0" max="4" value="0" class="slider mt-3" id="brightness-slider">
+            </div>
+            <div class="col-md-4">
+                <div class="sensor-card">
+                    <h3>Temperature</h3>
+                    <div class="sensor-value">
+                        <span id="temperature">--</span>°C
+                    </div>
+                </div>
+                <div class="sensor-card">
+                    <h3>Humidity</h3>
+                    <div class="sensor-value">
+                        <span id="humidity">--</span>%
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Video stream update
+        setInterval(function() {
+            const img = document.getElementById('video-stream');
+            img.src = 'video_stream/uploaded_image.jpg?' + new Date().getTime();
+        }, 100);
+
+        // Brightness control
+        let previous_brightness = -1;
+        const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
+        const BRIGHTNESS_URL = 'http://192.168.1.11:81/slider?value=';
+
+        const slider = document.getElementById('brightness-slider');
+        slider.addEventListener('input', function() {
+            const level = slider.value;
+            const brightness_value = BRIGHTNESS_LEVELS[level];
+            fetch(BRIGHTNESS_URL + brightness_value);
+        });
+
+        // Sensor data update
+        function updateSensorData() {
+            fetch('get.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.latest) {
+                        document.getElementById('temperature').textContent = data.latest.temperature;
+                        document.getElementById('humidity').textContent = data.latest.humidity;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Update sensor data every 5 seconds
+        updateSensorData();
+        setInterval(updateSensorData, 5000);
+    </script>
+</body>
+</html>
