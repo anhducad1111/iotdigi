@@ -70,5 +70,4 @@
 
 # Ignore specific file
 /bcdacn2_21IT338_21IT340.docx
-
-.vscode/
+/.vscode/
