@@ -6,13 +6,21 @@
     <title>Video Stream</title>
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Animate.css -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body {
             padding-top: 20px;
+            background: linear-gradient(to right, #bffaff, #5791a4);
+            color: #fff;
         }
         #video-stream {
             max-width: 100%;
             height: auto;
+            border: 5px solid #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         .slider {
             width: 100%;
@@ -20,16 +28,28 @@
         .alert {
             margin-top: 20px;
         }
-        .sensor-card {
-            background-color: #f8f9fa;
+        .sensor-card, .ocr-card {
+            background-color: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s;
+        }
+        .sensor-card:hover, .ocr-card:hover {
+            transform: scale(1.05);
         }
         .sensor-value {
             font-size: 2rem;
             font-weight: bold;
-            color: #007bff;
+            color: #7ef8f4;
+        }
+        .ocr-text {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+        h1, h3 {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
@@ -37,22 +57,27 @@
     <div class="container">
         <div class="row">
             <div class="col-md-8 text-center">
-                <h1 class="display-4">Video Stream từ Camera</h1>
-                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream" class="img-fluid rounded">
-                <div id="alert" class="alert alert-danger" style="display: none;">🔥 Phát hiện cháy! 🔥</div>
+                <h1 class="display-4 animate__animated animate__fadeInDown">Video Stream từ Camera</h1>
+                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream" class="img-fluid rounded animate__animated animate__zoomIn">
                 <input type="range" min="0" max="4" value="0" class="slider mt-3" id="brightness-slider">
             </div>
             <div class="col-md-4">
-                <div class="sensor-card">
-                    <h3>Temperature</h3>
+                <div class="sensor-card animate__animated animate__fadeInRight">
+                    <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
                     <div class="sensor-value">
                         <span id="temperature">--</span>°C
                     </div>
                 </div>
-                <div class="sensor-card">
-                    <h3>Humidity</h3>
+                <div class="sensor-card animate__animated animate__fadeInRight">
+                    <h3><i class="fas fa-tint"></i> Humidity</h3>
                     <div class="sensor-value">
                         <span id="humidity">--</span>%
+                    </div>
+                </div>
+                <div class="ocr-card animate__animated animate__fadeInRight">
+                    <h3><i class="fas fa-text-height"></i> OCR Result</h3>
+                    <div class="ocr-text">
+                        <span id="ocr-text">--</span>
                     </div>
                 </div>
             </div>
@@ -87,14 +112,19 @@
             fetch('get.php')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success' && data.latest) {
-                        document.getElementById('temperature').textContent = data.latest.temperature;
-                        document.getElementById('humidity').textContent = data.latest.humidity;
+                    if (data.status === 'success') {
+                        if (data.latest_sensor_reading) {
+                            document.getElementById('temperature').textContent = data.latest_sensor_reading.temperature;
+                            document.getElementById('humidity').textContent = data.latest_sensor_reading.humidity;
+                        }
+                        if (data.latest_ocr_result) {
+                            document.getElementById('ocr-text').textContent = data.latest_ocr_result.ocr_text;
+                        }
                     }
                 })
                 .catch(error => console.error('Error:', error));
         }
-
+    
         // Update sensor data every 5 seconds
         updateSensorData();
         setInterval(updateSensorData, 5000);

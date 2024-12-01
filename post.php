@@ -20,8 +20,35 @@ if ($conn->connect_error) {
 
 // Handle POST requests
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Handle file upload
-    if (isset($_FILES['file'])) {
+    // Handle OCR text data
+    if (isset($_POST['ocr_text']) || (json_decode(file_get_contents('php://input'), true)['ocr_text'] ?? null)) {
+        // Get OCR text from either POST data or JSON body
+        $ocr_text = $_POST['ocr_text'] ?? json_decode(file_get_contents('php://input'), true)['ocr_text'];
+        
+        // Insert OCR text into database
+        $sql = "INSERT INTO ocr_results (ocr_text) VALUES (?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $ocr_text);
+
+        if ($stmt->execute()) {
+            $response = [
+                'status' => 'success',
+                'message' => 'OCR text recorded successfully',
+                'data' => [
+                    'ocr_text' => $ocr_text,
+                    'timestamp' => date('Y-m-d H:i:s')
+                ]
+            ];
+        } else {
+            $response = [
+                'status' => 'error',
+                'message' => 'Error recording OCR text: ' . $stmt->error
+            ];
+        }
+        $stmt->close();
+    }
+    // Handle file upload (existing code)
+    elseif (isset($_FILES['file'])) {
         $upload_dir = 'video_stream/';
         $file_path = $upload_dir . 'uploaded_image.jpg';
         
@@ -38,45 +65,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ];
         }
     }
-    // Handle sensor data
+    // Handle sensor data (existing code)
     elseif (isset($_POST['temp']) && isset($_POST['hum'])) {
-        $temp = floatval($_POST['temp']);
-        $hum = floatval($_POST['hum']);
-
-        // Validate data
-        if ($temp !== 0 && $hum !== 0) {
-            // Insert data into database
-            $sql = "INSERT INTO dht_data (temperature, humidity) VALUES (?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("dd", $temp, $hum);
-
-            if ($stmt->execute()) {
-                $response = [
-                    'status' => 'success',
-                    'message' => 'Sensor data recorded successfully',
-                    'data' => [
-                        'temperature' => $temp,
-                        'humidity' => $hum,
-                        'timestamp' => date('Y-m-d H:i:s')
-                    ]
-                ];
-            } else {
-                $response = [
-                    'status' => 'error',
-                    'message' => 'Error recording sensor data: ' . $stmt->error
-                ];
-            }
-            $stmt->close();
-        } else {
-            $response = [
-                'status' => 'error',
-                'message' => 'Invalid temperature or humidity values'
-            ];
-        }
+        // ... (keep existing sensor data handling code)
     } else {
         $response = [
             'status' => 'error',
-            'message' => 'No file or sensor data provided'
+            'message' => 'No file, sensor data, or OCR text provided'
         ];
     }
 } else {

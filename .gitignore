@@ -1,0 +1,72 @@
+# Project root
+/iotdigi/.dart_tool/
+/iotdigi/.flutter-plugins
+/iotdigi/.flutter-plugins-dependencies
+/iotdigi/.packages
+/iotdigi/.pub/
+/iotdigi/build/
+/iotdigi/*.iml
+/iotdigi/.idea/
+/iotdigi/.vscode/
+
+# Android specific
+/iotdigi/android/**/gradle-wrapper.jar
+/iotdigi/android/.gradle
+/iotdigi/android/captures/
+/iotdigi/android/gradlew
+/iotdigi/android/gradlew.bat
+/iotdigi/android/local.properties
+/iotdigi/android/**/GeneratedPluginRegistrant.*
+
+# iOS specific
+/iotdigi/ios/**/*.mode1v3
+/iotdigi/ios/**/*.mode2v3
+/iotdigi/ios/**/*.moved-aside
+/iotdigi/ios/**/*.pbxuser
+/iotdigi/ios/**/*.perspectivev3
+/iotdigi/ios/**/*sync/
+/iotdigi/ios/**/.sconsign.dblite
+/iotdigi/ios/**/.tags*
+/iotdigi/ios/**/.vagrant/
+/iotdigi/ios/**/DerivedData/
+/iotdigi/ios/**/Icon?
+/iotdigi/ios/**/Pods/
+/iotdigi/ios/**/.symlinks/
+/iotdigi/ios/**/profile
+/iotdigi/ios/**/xcuserdata
+/iotdigi/ios/.generated/
+/iotdigi/ios/Flutter/App.framework
+/iotdigi/ios/Flutter/Flutter.framework
+/iotdigi/ios/Flutter/Flutter.podspec
+/iotdigi/ios/Flutter/Generated.xcconfig
+/iotdigi/ios/Flutter/app.flx
+/iotdigi/ios/Flutter/app.zip
+/iotdigi/ios/Flutter/flutter_assets/
+/iotdigi/ios/Flutter/flutter_export_environment.sh
+/iotdigi/ios/ServiceDefinitions.json
+
+# Web related
+/iotdigi/lib/generated_plugin_registrant.dart
+
+# Symbolication related
+/iotdigi/app.*.symbols
+
+# Obfuscation related
+/iotdigi/app.*.map.json
+
+# Temporary files
+/iotdigi/*.log
+/iotdigi/*.pyc
+/iotdigi/*.swp
+/iotdigi/.DS_Store
+/iotdigi/.atom/
+/iotdigi/.buildlog/
+/iotdigi/.history
+/iotdigi/.svn/
+/iotdigi/migrate_working_dir/
+
+# Environment files
+/iotdigi/.env*
+
+# Ignore specific file
+/bcdacn2_21IT338_21IT340.docx
