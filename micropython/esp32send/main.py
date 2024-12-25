@@ -3,22 +3,28 @@ import ssd1306
 from time import sleep
 import random
 import urequests
+import dht
 
 # Initialize OLED display
 i2c = SoftI2C(scl=Pin(22), sda=Pin(21))
 oled_width = 128
 oled_height = 64
 oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
-
+dht_sensor = dht.DHT22(Pin(2))
 # Function to simulate DHT sensor data
-def simulate_dht_data():
-    temp = random.uniform(20.0, 30.0)
-    hum = random.uniform(30.0, 70.0)
-    return temp, hum
+def read_dht_data():
+    try:
+        dht_sensor.measure()
+        temp = dht_sensor.temperature()
+        hum = dht_sensor.humidity()
+        return temp, hum
+    except Exception as e:
+        print(f'DHT sensor error: {e}')
+        return None, None
 
 # Function to read sensor and update OLED display
 def read_and_display_sensor():
-    temp, hum = simulate_dht_data()
+    temp, hum = read_dht_data()
     if (isinstance(temp, float) and isinstance(hum, float)) or (isinstance(temp, int) and (isinstance(hum, int))):
         oled.fill(0)
         oled.text('Temp: {:.1f} C'.format(temp), 0, 0)
@@ -28,7 +34,7 @@ def read_and_display_sensor():
     return None, None
 
 # URL của endpoint PHP
-url = 'http://192.168.1.5/video_upload/get.php'
+url = 'http://192.168.1.5/video_upload/post.php'
 
 print('Starting sensor monitoring...')
 

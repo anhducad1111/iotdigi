@@ -67,7 +67,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     // Handle sensor data (existing code)
     elseif (isset($_POST['temp']) && isset($_POST['hum'])) {
-        // ... (keep existing sensor data handling code)
+        $temperature = floatval($_POST['temp']);
+        $humidity = floatval($_POST['hum']);
+        
+        // Insert sensor data into database
+        $sql = "INSERT INTO dht_data (temperature, humidity, timestamp) VALUES (?, ?, NOW())";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("dd", $temperature, $humidity);
+        
+        if ($stmt->execute()) {
+            $response = [
+                'status' => 'success',
+                'message' => 'Sensor data recorded successfully',
+                'data' => [
+                    'temperature' => $temperature,
+                    'humidity' => $humidity,
+                    'timestamp' => date('Y-m-d H:i:s')
+                ]
+            ];
+        } else {
+            $response = [
+                'status' => 'error',
+                'message' => 'Error recording sensor data: ' . $stmt->error
+            ];
+        }
+        $stmt->close();
     } else {
         $response = [
             'status' => 'error',
