@@ -18,34 +18,37 @@ if ($conn->connect_error) {
     ]));
 }
 
-// Handle POST requests
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Handle OCR text data
     if (isset($_POST['ocr_text']) || (json_decode(file_get_contents('php://input'), true)['ocr_text'] ?? null)) {
-        // Get OCR text from either POST data or JSON body
-        $ocr_text = $_POST['ocr_text'] ?? json_decode(file_get_contents('php://input'), true)['ocr_text'];
         
-        // Insert OCR text into database
-        $sql = "INSERT INTO ocr_results (ocr_text) VALUES (?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("s", $ocr_text);
-
-        if ($stmt->execute()) {
-            $response = [
-                'status' => 'success',
-                'message' => 'OCR text recorded successfully',
-                'data' => [
-                    'ocr_text' => $ocr_text,
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]
-            ];
+        $ocr_text = $_POST['ocr_text'] ?? json_decode(file_get_contents('php://input'), true)['ocr_text'];
+        if ($ocr_text !== 'none') {
+            $sql = "INSERT INTO ocr_results (ocr_text) VALUES (?)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("s", $ocr_text);
+    
+            if ($stmt->execute()) {
+                $response = [
+                    'status' => 'success',
+                    'message' => 'OCR text recorded successfully',
+                    'data' => [
+                        'ocr_text' => $ocr_text,
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ]
+                ];
+            } else {
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Error recording OCR text: ' . $stmt->error
+                ];
+            }
+            $stmt->close();
         } else {
             $response = [
                 'status' => 'error',
-                'message' => 'Error recording OCR text: ' . $stmt->error
+                'message' => 'OCR text is "none", not recorded'
             ];
         }
-        $stmt->close();
     }
     // Handle file upload (existing code)
     elseif (isset($_FILES['file'])) {

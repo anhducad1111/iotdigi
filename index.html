@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,19 +17,24 @@
             background: linear-gradient(to right, #bffaff, #5791a4);
             color: #fff;
         }
+
         #video-stream {
             max-width: 100%;
             height: auto;
             border: 5px solid #fff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
+
         .slider {
             width: 100%;
         }
+
         .alert {
             margin-top: 20px;
         }
-        .sensor-card, .ocr-card {
+
+        .sensor-card,
+        .ocr-card {
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             padding: 15px;
@@ -36,29 +42,37 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             transition: transform 0.3s;
         }
-        .sensor-card:hover, .ocr-card:hover {
+
+        .sensor-card:hover,
+        .ocr-card:hover {
             transform: scale(1.05);
         }
+
         .sensor-value {
             font-size: 2rem;
             font-weight: bold;
             color: #7ef8f4;
         }
+
         .ocr-text {
             font-size: 1.5rem;
             color: #fff;
         }
-        h1, h3 {
+
+        h1,
+        h3 {
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="row">
             <div class="col-md-8 text-center">
                 <h1 class="display-4 animate__animated animate__fadeInDown">Video Stream từ Camera</h1>
-                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream" class="img-fluid rounded animate__animated animate__zoomIn">
+                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream"
+                    class="img-fluid rounded animate__animated animate__zoomIn">
                 <input type="range" min="0" max="4" value="0" class="slider mt-3" id="brightness-slider">
             </div>
             <div class="col-md-4">
@@ -80,6 +94,16 @@
                         <span id="ocr-text">--</span>
                     </div>
                 </div>
+                <div class="ocr-card animate__animated animate__fadeInRight">
+                    <h3><i class="fas fa-money-bill-wave"></i> Water Bill</h3>
+                    <div class="ocr-text">
+                        <span id="water-bill">--</span> VNĐ
+                    </div>
+                </div>
+                <div id="leak-alert" style="display: none; color: red; font-weight: bold;">
+                    ⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!
+                </div>
+
             </div>
         </div>
     </div>
@@ -90,7 +114,7 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
         // Video stream update
-        setInterval(function() {
+        setInterval(function () {
             const img = document.getElementById('video-stream');
             img.src = 'video_stream/uploaded_image.jpg?' + new Date().getTime();
         }, 100);
@@ -98,10 +122,10 @@
         // Brightness control
         let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.1.8:81/slider?value=';
+        const BRIGHTNESS_URL = 'http://192.168.1.9:81/slider?value=';
 
         const slider = document.getElementById('brightness-slider');
-        slider.addEventListener('input', function() {
+        slider.addEventListener('input', function () {
             const level = slider.value;
             const brightness_value = BRIGHTNESS_LEVELS[level];
             fetch(BRIGHTNESS_URL + brightness_value);
@@ -112,6 +136,7 @@
             fetch('get.php')
                 .then(response => response.json())
                 .then(data => {
+                    console.log(data.leak_alert);
                     if (data.status === 'success') {
                         if (data.latest_sensor_reading) {
                             document.getElementById('temperature').textContent = data.latest_sensor_reading.temperature;
@@ -120,14 +145,66 @@
                         if (data.latest_ocr_result) {
                             document.getElementById('ocr-text').textContent = data.latest_ocr_result.ocr_text;
                         }
+                        if (data.ocr_readings) {
+                            calculateWaterBill(data.ocr_readings);
+                        }
+                        if (data.leak_alert) {
+                            displayLeakAlert();
+                        } else {
+                            hideLeakAlert();
+                        }
                     }
                 })
                 .catch(error => console.error('Error:', error));
         }
-    
+
+        function displayLeakAlert() {
+            const alertBox = document.getElementById('leak-alert');
+            alertBox.style.display = 'block';
+            alertBox.textContent = '⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!';
+        }
+
+        function hideLeakAlert() {
+            const alertBox = document.getElementById('leak-alert');
+            alertBox.style.display = 'none';
+        }
+
+        function calculateWaterBill(readings) {
+            if (readings.length < 2) {
+                document.getElementById('water-bill').textContent = '--';
+                return;
+            }
+
+            const startReading = readings[0].ocr_text;
+            const endReading = readings[readings.length - 1].ocr_text;
+            const totalUsage = endReading - startReading;
+
+            const rates = [
+                { limit: 10, price: 5973 },
+                { limit: 10, price: 7052 },
+                { limit: 10, price: 8669 },
+                { limit: Infinity, price: 15929 }
+            ];
+
+            let remainingUsage = totalUsage;
+            let totalBill = 0;
+
+            for (const rate of rates) {
+                if (remainingUsage > 0) {
+                    const usage = Math.min(remainingUsage, rate.limit);
+                    totalBill += usage * rate.price;
+                    remainingUsage -= usage;
+                } else {
+                    break;
+                }
+            }
+
+            document.getElementById('water-bill').textContent = totalBill.toLocaleString();
+        }
         // Update sensor data every 5 seconds
         updateSensorData();
         setInterval(updateSensorData, 5000);
     </script>
 </body>
+
 </html>
