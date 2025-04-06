@@ -33,7 +33,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     'message' => 'OCR text recorded successfully',
                     'data' => [
                         'ocr_text' => $ocr_text,
-                        'timestamp' => date('Y-m-d H:i:s')
+                        'timestamp' => time()
                     ]
                 ];
             } else {
@@ -85,7 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'data' => [
                     'temperature' => $temperature,
                     'humidity' => $humidity,
-                    'timestamp' => date('Y-m-d H:i:s')
+                    'timestamp' => time()
                 ]
             ];
         } else {

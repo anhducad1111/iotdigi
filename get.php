@@ -58,7 +58,7 @@ if ($ocr_month_result->num_rows > 0) {
 }
 
 $leak_alert = false;
-$current_time = time();  // Lấy thời gian hiện tại
+$current_time = time();  
 
 if (count($ocr_readings) > 1) {
     for ($i = 0; $i < count($ocr_readings); $i++) {
@@ -69,7 +69,7 @@ if (count($ocr_readings) > 1) {
             $reading2 = (float)$ocr_readings[$j]['ocr_text'];
 
             // Kiểm tra nếu thời gian chênh lệch <= 24 giờ và giá trị tăng > 5
-            if (($time2 - $time1) <= 86400 && ($time2 - $time1) >= 0 && ($reading2 - $reading1) > 5) {
+            if (($time2 - $time1) <= 86400 && ($time2 - $time1) >= 0 && ($reading2 - $reading1) > 50) {
                 $leak_alert = true;
                 break 2; // Thoát khỏi cả hai vòng lặp nếu phát hiện
             }

@@ -1,1 +1,0 @@
-Temperature: 29.24797, Humidity: 65.72736

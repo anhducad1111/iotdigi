@@ -63,6 +63,39 @@
         h3 {
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
+
+        .btn-ocr {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 20px;
+            transition: all 0.3s;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn-ocr:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .btn-ocr:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-ocr .spinner-border {
+            width: 1rem;
+            height: 1rem;
+            margin-right: 5px;
+            display: none;
+        }
+
+        .btn-ocr.processing .spinner-border {
+            display: inline-block;
+        }
     </style>
 </head>
 
@@ -93,6 +126,10 @@
                     <div class="ocr-text">
                         <span id="ocr-text">--</span>
                     </div>
+                    <button id="trigger-ocr" class="btn btn-ocr">
+                        <span class="spinner-border" role="status"></span>
+                        <i class="fas fa-sync"></i> Scan Now
+                    </button>
                 </div>
                 <div class="ocr-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-money-bill-wave"></i> Water Bill</h3>
@@ -103,7 +140,6 @@
                 <div id="leak-alert" style="display: none; color: red; font-weight: bold;">
                     ⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!
                 </div>
-
             </div>
         </div>
     </div>
@@ -122,13 +158,46 @@
         // Brightness control
         let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.1.9:81/slider?value=';
+        const BRIGHTNESS_URL = 'http://192.168.137.44:81/slider?value=';
+        const OCR_TRIGGER_URL = 'http://192.168.137.44:82/trigger';
 
         const slider = document.getElementById('brightness-slider');
         slider.addEventListener('input', function () {
             const level = slider.value;
             const brightness_value = BRIGHTNESS_LEVELS[level];
             fetch(BRIGHTNESS_URL + brightness_value);
+        });
+
+        // Manual OCR trigger
+        const ocrButton = document.getElementById('trigger-ocr');
+        let isProcessingOcr = false;
+
+        ocrButton.addEventListener('click', async function() {
+            if (isProcessingOcr) return;
+
+            try {
+                isProcessingOcr = true;
+                ocrButton.classList.add('processing');
+                ocrButton.disabled = true;
+
+                const response = await fetch(OCR_TRIGGER_URL);
+                if (!response.ok) {
+                    throw new Error('OCR trigger failed');
+                }
+
+                // Wait a moment for processing
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Update the display
+                updateSensorData();
+                
+            } catch (error) {
+                console.error('Error triggering OCR:', error);
+            } finally {
+                isProcessingOcr = false;
+                ocrButton.classList.remove('processing');
+                ocrButton.disabled = false;
+            }
         });
 
         // Sensor data update
@@ -201,6 +270,7 @@
 
             document.getElementById('water-bill').textContent = totalBill.toLocaleString();
         }
+        
         // Update sensor data every 5 seconds
         updateSensorData();
         setInterval(updateSensorData, 5000);
