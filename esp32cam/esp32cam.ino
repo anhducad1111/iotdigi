@@ -1,3 +1,5 @@
+
+
 /**
  * ESP32-CAM Image Capture and OCR System
  * This program uses ESP32-CAM to capture images, process them through OCR,

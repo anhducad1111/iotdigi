@@ -44,73 +44,85 @@ void ledControlTask(void* parameter) {
     }
 }
 
+bool performOCR(NetworkConfig* config, bool isManual = false) {
+    Serial.println(isManual ? "Manual OCR trigger" : "Auto OCR trigger");
+    
+    HTTPClient http;
+    String boundary = HTTP_BOUNDARY;
+    String requestBody = "--" + boundary + "\r\n";
+    requestBody += "Content-Disposition: form-data; name=\"url\"\r\n\r\n";
+    requestBody += config->imageUrl + "\r\n";
+    requestBody += "--" + boundary + "\r\n";
+    requestBody += "Content-Disposition: form-data; name=\"OCREngine\"\r\n\r\n2\r\n";
+    requestBody += "--" + boundary + "--\r\n";
+
+    http.begin(config->getOcrApiUrl());
+    http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+    http.addHeader("apikey", config->getOcrApiKey());
+
+    int httpCode = http.POST(requestBody);
+    Serial.printf("OCR API Response: %d\n", httpCode);
+    bool success = false;
+
+    if (httpCode == HTTP_CODE_OK) {
+        String response = http.getString();
+        DynamicJsonDocument jsonDoc(1024);
+        DeserializationError error = deserializeJson(jsonDoc, response);
+        
+        if (!error) {
+            const char* text = jsonDoc["ParsedResults"][0]["ParsedText"] | "none";
+            if (strcmp(text, "none") != 0) {
+                Serial.println("OCR Result: " + String(text));
+                
+                HTTPClient resultHttp;
+                resultHttp.begin(String(config->getServerUrl()) + "/video_upload/post.php");
+                resultHttp.addHeader("Content-Type", "application/json");
+                
+                String jsonResult;
+                StaticJsonDocument<200> resultDoc;
+                resultDoc["ocr_text"] = text;
+                serializeJson(resultDoc, jsonResult);
+                
+                resultHttp.POST(jsonResult);
+                resultHttp.end();
+                success = true;
+            } else {
+                Serial.println("No text detected in image");
+            }
+        }
+    }
+    
+    http.end();
+    return success;
+}
+
 void ocrProcessingTask(void* parameter) {
     NetworkConfig* config = (NetworkConfig*)parameter;
     unsigned long lastOcrTime = 0;
-    DynamicJsonDocument jsonDoc(1024);
 
     while (true) {
+        // Handle manual triggers
         WiFiClient client = ocrServer.available();
         if (client) {
             String request = client.readStringUntil('\r');
             if (request.indexOf("GET /trigger") >= 0) {
-                Serial.println("Manual OCR trigger");
-                
-                HTTPClient http;
-                String boundary = HTTP_BOUNDARY;
-                String requestBody = "--" + boundary + "\r\n";
-                requestBody += "Content-Disposition: form-data; name=\"url\"\r\n\r\n";
-                requestBody += config->imageUrl + "\r\n";
-                requestBody += "--" + boundary + "\r\n";
-                requestBody += "Content-Disposition: form-data; name=\"OCREngine\"\r\n\r\n2\r\n";
-                requestBody += "--" + boundary + "--\r\n";
-
-                http.begin(config->getOcrApiUrl());
-                http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
-                http.addHeader("apikey", config->getOcrApiKey());
-
-                int httpCode = http.POST(requestBody);
-                Serial.printf("OCR API Response: %d\n", httpCode);
-
-                if (httpCode == HTTP_CODE_OK) {
-                    String response = http.getString();
-                    jsonDoc.clear();
-                    DeserializationError error = deserializeJson(jsonDoc, response);
-                    
-                    if (!error) {
-                        const char* text = jsonDoc["ParsedResults"][0]["ParsedText"] | "none";
-                        if (strcmp(text, "none") != 0) {
-                            Serial.println("OCR Result: " + String(text));
-                            
-                            HTTPClient resultHttp;
-                            resultHttp.begin(String(config->getServerUrl()) + "/video_upload/post.php");
-                            resultHttp.addHeader("Content-Type", "application/json");
-                            
-                            String jsonResult;
-                            StaticJsonDocument<200> resultDoc;
-                            resultDoc["ocr_text"] = text;
-                            serializeJson(resultDoc, jsonResult);
-                            
-                            resultHttp.POST(jsonResult);
-                            resultHttp.end();
-                        }
-                    }
-                }
-                http.end();
+                bool success = performOCR(config, true);
                 
                 client.println("HTTP/1.1 200 OK");
                 client.println("Content-Type: text/plain");
                 client.println("Access-Control-Allow-Origin: *");
                 client.println();
-                client.println("OCR Complete");
+                client.println(success ? "OCR Complete" : "OCR Failed");
             }
             client.stop();
         }
 
-        // Auto OCR
-        if (millis() - lastOcrTime >= OCR_AUTO_INTERVAL) {
-            // Similar OCR process for auto trigger
-            lastOcrTime = millis();
+        // Handle automatic OCR
+        unsigned long currentTime = millis();
+        if (currentTime - lastOcrTime >= OCR_AUTO_INTERVAL) {
+            if (performOCR(config, false)) {
+                lastOcrTime = currentTime;
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
