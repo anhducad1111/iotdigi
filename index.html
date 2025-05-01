@@ -23,6 +23,7 @@
             height: auto;
             border: 5px solid #fff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform: rotate(180deg); /* Thêm dòng này để xoay video */
         }
 
         .slider {
@@ -158,8 +159,8 @@
         // Brightness control
         let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.137.44:81/slider?value=';
-        const OCR_TRIGGER_URL = 'http://192.168.137.44:82/trigger';
+        const BRIGHTNESS_URL = 'http://192.168.137.64:81/slider?value=';
+        const OCR_TRIGGER_URL = 'http://192.168.137.64:82/trigger';
 
         const slider = document.getElementById('brightness-slider');
         slider.addEventListener('input', function () {

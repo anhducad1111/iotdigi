@@ -5,8 +5,9 @@
 2. [System Architecture](#system-architecture)
    - [ESP32-CAM Module](#1-esp32-cam-module)
    - [ESP32 Environmental Monitor](#2-esp32-environmental-monitor)
-   - [Web Application](#3-web-application)
-   - [Flutter Mobile App](#4-flutter-mobile-app-demo)
+   - [LoRa Communication Nodes](#3-lora-communication-nodes)
+   - [Web Application](#4-web-application)
+   - [Flutter Mobile App](#5-flutter-mobile-app-demo)
 3. [Network Architecture](#network-architecture)
 4. [Hardware Components](#hardware-components)
 5. [Software Requirements](#software-requirements)
@@ -18,8 +19,9 @@
 An integrated IoT system combining:
 1. ESP32-CAM for image capture and OCR
 2. ESP32 environmental monitor
-3. Web application for data visualization
-4. Flutter mobile application (Demo)
+3. LoRa communication nodes for wireless data transmission
+4. Web application for data visualization
+5. Flutter mobile application (Demo)
 
 ## System Architecture
 
@@ -35,7 +37,34 @@ An integrated IoT system combining:
 - OCR text display with auto-scroll
 - 10-second update interval
 
-### 3. Web Application
+### 3. LoRa Communication Nodes
+**Send Node:**
+- WiFi connectivity for server communication
+- Retrieves latest OCR data every 10 seconds
+- Transmits OCR text, timestamp, and location via LoRa
+- Operates at 921MHz frequency
+- Enables long-range wireless data transmission
+
+**Receive Node:**
+- LoRa receiver for multi-source data collection
+- Real-time data parsing and serial display
+- Receives OCR text from multiple sending nodes
+- Each transmission includes:
+  * OCR text content
+  * Timestamp of capture
+  * Location/source identifier
+- Operates at 921MHz frequency
+
+**LoRa Pin Configuration:**
+```
+Component  ESP8266 Pin  Description
+----------------------------------------
+NSS/SS     GPIO15      Chip select
+RST        GPIO16      Reset
+DIO0       GPIO2       Interrupt
+```
+
+### 4. Web Application
 **Technology Stack:**
 ```
 Backend:  PHP + MySQL
@@ -61,7 +90,7 @@ video_upload/
 └── video_stream/    # Image storage
 ```
 
-### 4. Flutter Mobile App (Demo)
+### 5. Flutter Mobile App (Demo)
 **Features:**
 - Real-time data monitoring
 - Push notifications
@@ -135,6 +164,21 @@ OLED SDA   GPIO21      Display data
 OLED SCL   GPIO22      Display clock
 ```
 
+### LoRa Nodes Setup
+1. **Send Node (ESP8266)**
+   - LoRa transceiver module SX1278
+   - WiFi connectivity for OCR data retrieval
+   - Supports long-range data transmission
+   - Pin configuration as specified in System Architecture
+   - 10-second update interval
+
+2. **Receive Node (ESP8266)**
+   - LoRa transceiver module SX1278
+   - Multi-source data reception capability
+   - Serial output (115200 baud) for monitoring
+   - Pin configuration as specified in System Architecture
+   - Real-time data parsing and display
+
 ## Software Requirements
 
 ### Development Tools
@@ -161,6 +205,7 @@ Arduino:
 - DHT sensor library
 - Adafruit SSD1306
 - Adafruit GFX
+- LoRa (by Sandeep Mistry)
 
 Flutter:
 - http: ^0.13.0
