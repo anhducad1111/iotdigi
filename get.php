@@ -16,7 +16,11 @@ if ($conn->connect_error) {
 }
 
 // Get latest 10 sensor readings
-$sensor_sql = "SELECT temperature, humidity, timestamp FROM dht_data ORDER BY timestamp DESC LIMIT 10";
+// Get latest 10 sensor readings including gas data
+$sensor_sql = "SELECT d.temperature, d.humidity, d.timestamp, COALESCE(g.concentration, 0) as gas_concentration 
+               FROM dht_data d 
+               LEFT JOIN gas_data g ON d.timestamp = g.timestamp 
+               ORDER BY d.timestamp DESC LIMIT 10";
 $sensor_result = $conn->query($sensor_sql);
 
 $sensor_readings = [];
@@ -30,13 +34,24 @@ if ($sensor_result->num_rows > 0) {
         $sensor_readings[] = [
             'temperature' => number_format($sensor_row['temperature'], 1),
             'humidity' => number_format($sensor_row['humidity'], 1),
+            'gas_concentration' => number_format($sensor_row['gas_concentration'], 1),
             'timestamp' => $sensor_row['timestamp']
         ];
     }
 }
 
-// Get latest OCR result
-$ocr_sql = "SELECT ocr_text, timestamp FROM ocr_results ORDER BY timestamp DESC LIMIT 1";
+// Get latest gas reading
+$gas_sql = "SELECT concentration FROM gas_data ORDER BY timestamp DESC LIMIT 1";
+$gas_result = $conn->query($gas_sql);
+$latest_gas_reading = 0;
+
+if ($gas_result->num_rows > 0) {
+    $gas_row = $gas_result->fetch_assoc();
+    $latest_gas_reading = number_format($gas_row['concentration'], 1);
+}
+
+// Get latest OCR result with water bill
+$ocr_sql = "SELECT ocr_text, water_bill, timestamp FROM ocr_results ORDER BY timestamp DESC LIMIT 1";
 $ocr_result = $conn->query($ocr_sql);
 
 $latest_ocr_result = null;
@@ -46,7 +61,7 @@ if ($ocr_result->num_rows > 0) {
 }
 
 $current_month = date('Y-m');
-$ocr_month_sql = "SELECT id, ocr_text, timestamp FROM ocr_results WHERE timestamp LIKE '$current_month%' ORDER BY timestamp";
+$ocr_month_sql = "SELECT id, ocr_text, water_bill, timestamp FROM ocr_results WHERE timestamp LIKE '$current_month%' ORDER BY timestamp";
 $ocr_month_result = $conn->query($ocr_month_sql);
 
 $ocr_readings = [];
@@ -82,6 +97,7 @@ $response = [
     'latest_sensor_reading' => $latest_sensor_reading,
     'sensor_readings' => $sensor_readings,
     'latest_ocr_result' => $latest_ocr_result,
+    'latest_gas_reading' => $latest_gas_reading,
     'ocr_readings' => $ocr_readings,
     'leak_alert' => $leak_alert 
 ];

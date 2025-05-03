@@ -113,29 +113,38 @@
                 <div class="sensor-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
                     <div class="sensor-value">
-                        <span id="temperature">--</span>°C
+                        <span id="temperature">--</span> °C
                     </div>
                 </div>
                 <div class="sensor-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-tint"></i> Humidity</h3>
                     <div class="sensor-value">
-                        <span id="humidity">--</span>%
+                        <span id="humidity">--</span> %
+                    </div>
+                </div>
+                <div class="sensor-card animate__animated animate__fadeInRight">
+                    <h3><i class="fas fa-smog"></i> Gas Concentration</h3>
+                    <div class="sensor-value">
+                        <span id="gas">--</span> %
+                        <div class="alert alert-danger gas-alert" style="display:none">
+                            <i class="fas fa-exclamation-triangle"></i> Gas level above threshold!
+                        </div>
                     </div>
                 </div>
                 <div class="ocr-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-text-height"></i> OCR Result</h3>
+                    <h3><i class="fas fa-tachometer-alt"></i> Water Meter</h3>
                     <div class="ocr-text">
-                        <span id="ocr-text">--</span>
+                        <span id="ocr-text">--</span> m³
                     </div>
                     <button id="trigger-ocr" class="btn btn-ocr">
                         <span class="spinner-border" role="status"></span>
-                        <i class="fas fa-sync"></i> Scan Now
+                        <i class="fas fa-sync"></i> Take Reading
                     </button>
                 </div>
                 <div class="ocr-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-money-bill-wave"></i> Water Bill</h3>
                     <div class="ocr-text">
-                        <span id="water-bill">--</span> VNĐ
+                        <span id="water-bill">--</span>K VNĐ
                     </div>
                 </div>
                 <div id="leak-alert" style="display: none; color: red; font-weight: bold;">
@@ -159,8 +168,8 @@
         // Brightness control
         let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.137.64:81/slider?value=';
-        const OCR_TRIGGER_URL = 'http://192.168.137.64:82/trigger';
+        const BRIGHTNESS_URL = 'http://192.168.137.223:81/slider?value=';
+        const OCR_TRIGGER_URL = 'http://192.168.137.223:82/trigger';
 
         const slider = document.getElementById('brightness-slider');
         slider.addEventListener('input', function () {
@@ -206,18 +215,36 @@
             fetch('get.php')
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data.leak_alert);
+                    console.log(data);
                     if (data.status === 'success') {
+                        // Update sensor readings
                         if (data.latest_sensor_reading) {
                             document.getElementById('temperature').textContent = data.latest_sensor_reading.temperature;
                             document.getElementById('humidity').textContent = data.latest_sensor_reading.humidity;
+                            
+                            // Update gas concentration and check threshold
+                            const gasConcentration = parseFloat(data.latest_sensor_reading.gas_concentration);
+                            document.getElementById('gas').textContent = data.latest_sensor_reading.gas_concentration;
+                            
+                            // Check gas threshold (1%)
+                            if (gasConcentration > 1.0) {
+                                displayGasAlert(gasConcentration);
+                            } else {
+                                hideGasAlert();
+                            }
                         }
+
+                        // Update OCR and water bill
                         if (data.latest_ocr_result) {
                             document.getElementById('ocr-text').textContent = data.latest_ocr_result.ocr_text;
                         }
-                        if (data.ocr_readings) {
-                            calculateWaterBill(data.ocr_readings);
+                        // Update water bill if available
+                        if (data.latest_ocr_result && data.latest_ocr_result.water_bill) {
+                            const billInK = (data.latest_ocr_result.water_bill / 1000).toFixed(1);
+                            document.getElementById('water-bill').textContent = billInK;
                         }
+
+                        // Handle leak alert
                         if (data.leak_alert) {
                             displayLeakAlert();
                         } else {
@@ -226,6 +253,23 @@
                     }
                 })
                 .catch(error => console.error('Error:', error));
+        }
+
+        function displayGasAlert(concentration) {
+            const existingAlert = document.querySelector('.gas-alert');
+            if (!existingAlert) {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger gas-alert animate__animated animate__fadeIn';
+                alert.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Warning: Gas concentration (${concentration}%) exceeds safe limit (1%)!`;
+                document.getElementById('gas').closest('.sensor-card').after(alert);
+            }
+        }
+
+        function hideGasAlert() {
+            const alert = document.querySelector('.gas-alert');
+            if (alert) {
+                alert.remove();
+            }
         }
 
         function displayLeakAlert() {
@@ -237,39 +281,6 @@
         function hideLeakAlert() {
             const alertBox = document.getElementById('leak-alert');
             alertBox.style.display = 'none';
-        }
-
-        function calculateWaterBill(readings) {
-            if (readings.length < 2) {
-                document.getElementById('water-bill').textContent = '--';
-                return;
-            }
-
-            const startReading = readings[0].ocr_text;
-            const endReading = readings[readings.length - 1].ocr_text;
-            const totalUsage = endReading - startReading;
-
-            const rates = [
-                { limit: 10, price: 5973 },
-                { limit: 10, price: 7052 },
-                { limit: 10, price: 8669 },
-                { limit: Infinity, price: 15929 }
-            ];
-
-            let remainingUsage = totalUsage;
-            let totalBill = 0;
-
-            for (const rate of rates) {
-                if (remainingUsage > 0) {
-                    const usage = Math.min(remainingUsage, rate.limit);
-                    totalBill += usage * rate.price;
-                    remainingUsage -= usage;
-                } else {
-                    break;
-                }
-            }
-
-            document.getElementById('water-bill').textContent = totalBill.toLocaleString();
         }
         
         // Update sensor data every 5 seconds
