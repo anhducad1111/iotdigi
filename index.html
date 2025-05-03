@@ -23,7 +23,6 @@
             height: auto;
             border: 5px solid #fff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transform: rotate(180deg); /* Thêm dòng này để xoay video */
         }
 
         .slider {
@@ -113,42 +112,46 @@
                 <div class="sensor-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
                     <div class="sensor-value">
-                        <span id="temperature">--</span> °C
+                        <span id="temperature">--</span>°C
                     </div>
                 </div>
                 <div class="sensor-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-tint"></i> Humidity</h3>
                     <div class="sensor-value">
-                        <span id="humidity">--</span> %
-                    </div>
-                </div>
-                <div class="sensor-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-smog"></i> Gas Concentration</h3>
-                    <div class="sensor-value">
-                        <span id="gas">--</span> %
-                        <div class="alert alert-danger gas-alert" style="display:none">
-                            <i class="fas fa-exclamation-triangle"></i> Gas level above threshold!
-                        </div>
+                        <span id="humidity">--</span>%
                     </div>
                 </div>
                 <div class="ocr-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-tachometer-alt"></i> Water Meter</h3>
+                    <h3><i class="fas fa-text-height"></i> OCR Result</h3>
                     <div class="ocr-text">
-                        <span id="ocr-text">--</span> m³
+                        <span id="ocr-text">--</span>
                     </div>
                     <button id="trigger-ocr" class="btn btn-ocr">
                         <span class="spinner-border" role="status"></span>
-                        <i class="fas fa-sync"></i> Take Reading
+                        <i class="fas fa-sync"></i> Scan Now
                     </button>
                 </div>
                 <div class="ocr-card animate__animated animate__fadeInRight">
                     <h3><i class="fas fa-money-bill-wave"></i> Water Bill</h3>
                     <div class="ocr-text">
-                        <span id="water-bill">--</span>K VNĐ
+                        <span id="water-bill">--</span> 
                     </div>
                 </div>
-                <div id="leak-alert" style="display: none; color: red; font-weight: bold;">
-                    ⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!
+                <div id="leak-alert" class="alert alert-danger animate__animated animate__fadeIn" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="alert-heading mb-0">⚠️ Cảnh báo rò rỉ nước!</h4>
+                        <button type="button" class="close" onclick="hideLeakAlert()">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <p class="mb-0 mt-2">Phát hiện lượng nước tăng bất thường:</p>
+                    <ul class="mb-0">
+                        <li>Thời gian: <span id="leak-time">--</span></li>
+                        <li>Lượng nước tăng: <span id="leak-usage">--</span> m³</li>
+                        <li>Tốc độ sử dụng: <span id="leak-rate">--</span> m³/giờ</li>
+                    </ul>
+                    <hr>
+                    <p class="mb-0">Vui lòng kiểm tra đường ống và thiết bị nước!</p>
                 </div>
             </div>
         </div>
@@ -168,8 +171,8 @@
         // Brightness control
         let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.137.223:81/slider?value=';
-        const OCR_TRIGGER_URL = 'http://192.168.137.223:82/trigger';
+        const BRIGHTNESS_URL = 'http://192.168.137.246:81/slider?value=';
+        const OCR_TRIGGER_URL = 'http://192.168.137.246:82/trigger';
 
         const slider = document.getElementById('brightness-slider');
         slider.addEventListener('input', function () {
@@ -215,72 +218,133 @@
             fetch('get.php')
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data);
                     if (data.status === 'success') {
-                        // Update sensor readings
+                        // Cập nhật nhiệt độ và độ ẩm
                         if (data.latest_sensor_reading) {
                             document.getElementById('temperature').textContent = data.latest_sensor_reading.temperature;
                             document.getElementById('humidity').textContent = data.latest_sensor_reading.humidity;
-                            
-                            // Update gas concentration and check threshold
-                            const gasConcentration = parseFloat(data.latest_sensor_reading.gas_concentration);
-                            document.getElementById('gas').textContent = data.latest_sensor_reading.gas_concentration;
-                            
-                            // Check gas threshold (1%)
-                            if (gasConcentration > 1.0) {
-                                displayGasAlert(gasConcentration);
-                            } else {
-                                hideGasAlert();
-                            }
                         }
 
-                        // Update OCR and water bill
+                        // Cập nhật kết quả OCR
                         if (data.latest_ocr_result) {
                             document.getElementById('ocr-text').textContent = data.latest_ocr_result.ocr_text;
                         }
-                        // Update water bill if available
-                        if (data.latest_ocr_result && data.latest_ocr_result.water_bill) {
-                            const billInK = (data.latest_ocr_result.water_bill / 1000).toFixed(1);
-                            document.getElementById('water-bill').textContent = billInK;
-                        }
 
-                        // Handle leak alert
+                        // Xử lý cảnh báo rò rỉ
                         if (data.leak_alert) {
                             displayLeakAlert();
                         } else {
                             hideLeakAlert();
                         }
+
+                        // Tính toán hóa đơn nước
+                        if (data.ocr_readings) {
+                            calculateWaterBill(data.ocr_readings);
+                        }
                     }
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
         }
 
-        function displayGasAlert(concentration) {
-            const existingAlert = document.querySelector('.gas-alert');
-            if (!existingAlert) {
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-danger gas-alert animate__animated animate__fadeIn';
-                alert.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Warning: Gas concentration (${concentration}%) exceeds safe limit (1%)!`;
-                document.getElementById('gas').closest('.sensor-card').after(alert);
+        function displayLeakAlert(leakData) {
+            try {
+                const alertBox = document.getElementById('leak-alert');
+                if (!alertBox) {
+                    console.error('Leak alert element not found');
+                    return;
+                }
+
+                const timeSpan = document.getElementById('leak-time');
+                const usageSpan = document.getElementById('leak-usage');
+                const rateSpan = document.getElementById('leak-rate');
+
+                if (timeSpan) timeSpan.textContent = `${leakData.start_time} - ${leakData.end_time}`;
+                if (usageSpan) usageSpan.textContent = leakData.usage;
+                if (rateSpan) rateSpan.textContent = leakData.rate;
+
+                alertBox.style.display = 'block';
+                console.log('Leak alert displayed successfully');
+            } catch (error) {
+                console.error('Error displaying leak alert:', error);
             }
-        }
-
-        function hideGasAlert() {
-            const alert = document.querySelector('.gas-alert');
-            if (alert) {
-                alert.remove();
-            }
-        }
-
-        function displayLeakAlert() {
-            const alertBox = document.getElementById('leak-alert');
-            alertBox.style.display = 'block';
-            alertBox.textContent = '⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!';
         }
 
         function hideLeakAlert() {
-            const alertBox = document.getElementById('leak-alert');
-            alertBox.style.display = 'none';
+            try {
+                const alertBox = document.getElementById('leak-alert');
+                if (alertBox) {
+                    alertBox.style.display = 'none';
+                    console.log('Leak alert hidden successfully');
+                }
+            } catch (error) {
+                console.error('Error hiding leak alert:', error);
+            }
+        }
+
+        function calculateWaterBill(readings) {
+            if (!readings || readings.length === 0) {
+                document.getElementById('water-bill').textContent = '--';
+                return;
+            }
+
+            // Lọc chỉ lấy các số hợp lệ
+            const validReadings = readings.filter(reading => {
+                const numStr = reading.ocr_text.replace(/[^0-9]/g, '');
+                const num = parseInt(numStr);
+                return !isNaN(num);
+            }).map(reading => ({
+                ...reading,
+                ocr_text: reading.ocr_text.replace(/[^0-9]/g, '')
+            }));
+
+            if (validReadings.length === 0) {
+                document.getElementById('water-bill').textContent = '--';
+                return;
+            }
+
+            const startReading = parseInt(validReadings[0].ocr_text);
+            const endReading = parseInt(validReadings[validReadings.length - 1].ocr_text);
+
+            console.log('Start reading:', startReading);
+            console.log('End reading:', endReading);
+            
+            if (validReadings.length === 1) {
+                document.getElementById('water-bill').textContent = '0 VNĐ';
+                return;
+            }
+
+            const totalUsage = endReading - startReading;
+            console.log('Total usage:', totalUsage);
+            
+            if (totalUsage < 0) {
+                document.getElementById('water-bill').textContent = '0 VNĐ';
+                return;
+            }
+
+            const rates = [
+                { limit: 10, price: 5973 },
+                { limit: 10, price: 7052 },
+                { limit: 10, price: 8669 },
+                { limit: Infinity, price: 15929 }
+            ];
+
+            let remainingUsage = totalUsage;
+            let totalBill = 0;
+
+            for (const rate of rates) {
+                if (remainingUsage > 0) {
+                    const usage = Math.min(remainingUsage, rate.limit);
+                    totalBill += usage * rate.price;
+                    remainingUsage -= usage;
+                } else {
+                    break;
+                }
+            }
+
+            document.getElementById('water-bill').textContent = totalBill.toLocaleString() + ' VNĐ';
+            console.log('Total bill:', totalBill);
         }
         
         // Update sensor data every 5 seconds

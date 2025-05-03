@@ -1,0 +1,1 @@
+C:\xampp\htdocs\iotdigi-main\iotdigi\build\app\intermediates\cxx\Debug\4g1u4x3d\obj\x86_64

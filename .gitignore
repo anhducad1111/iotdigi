@@ -73,4 +73,10 @@
 
 .vscode/
 debug_log.txt
-iotdigi/
+
+/users.sql
+/iotdigi/linux/
+/iotdigi/macos/
+/iotdigi/test/
+/iotdigi/windows/
+/iotdigi/web-app/

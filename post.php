@@ -50,74 +50,76 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ];
         }
     }
-    // Handle file upload
+    // Handle file upload (existing code)
     elseif (isset($_FILES['file'])) {
-        $upload_dir = 'video_stream/';
+        $upload_dir = __DIR__ . '/video_stream/';
         $file_path = $upload_dir . 'uploaded_image.jpg';
         
+        error_log("Received file upload request. File details: " . print_r($_FILES['file'], true));
+        
+        // Create video_stream directory if it doesn't exist
+        if (!is_dir($upload_dir)) {
+            error_log("Creating upload directory: " . $upload_dir);
+            if (!mkdir($upload_dir, 0777, true)) {
+                error_log("Failed to create directory: " . error_get_last()['message']);
+            }
+        }
+
+        // Ensure directory has correct permissions
+        chmod($upload_dir, 0777);
+        
+        if (!is_writable($upload_dir)) {
+            error_log("Upload directory is not writable");
+            chmod($upload_dir, 0777);
+        }
+        
         if (move_uploaded_file($_FILES['file']['tmp_name'], $file_path)) {
+            error_log("File uploaded successfully to: " . $file_path);
             $response = [
                 'status' => 'success',
                 'message' => 'File uploaded successfully',
                 'filename' => 'uploaded_image.jpg'
             ];
         } else {
+            $error = error_get_last();
+            error_log("Failed to move uploaded file. Error: " . ($error ? $error['message'] : 'Unknown error'));
             $response = [
                 'status' => 'error',
-                'message' => 'Error uploading file'
+                'message' => 'Error uploading file: ' . ($error ? $error['message'] : 'Unknown error')
             ];
         }
     }
-    // Handle sensor data with gas reading
-    elseif (isset($_POST['temp']) && isset($_POST['humidity']) && isset($_POST['gas'])) {
+    // Handle sensor data (existing code)
+    elseif (isset($_POST['temp']) && isset($_POST['hum'])) {
         $temperature = floatval($_POST['temp']);
-        $humidity = floatval($_POST['humidity']);
-        $gas = floatval($_POST['gas']);
+        $humidity = floatval($_POST['hum']);
         
-        // Begin transaction
-        $conn->begin_transaction();
+        // Insert sensor data into database
+        $sql = "INSERT INTO dht_data (temperature, humidity, timestamp) VALUES (?, ?, NOW())";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("dd", $temperature, $humidity);
         
-        try {
-            // Insert temperature and humidity
-            $dht_sql = "INSERT INTO dht_data (temperature, humidity, timestamp) VALUES (?, ?, NOW())";
-            $dht_stmt = $conn->prepare($dht_sql);
-            $dht_stmt->bind_param("dd", $temperature, $humidity);
-            $dht_stmt->execute();
-            $dht_stmt->close();
-            
-            // Insert gas reading with same timestamp
-            $gas_sql = "INSERT INTO gas_data (concentration, timestamp) VALUES (?, NOW())";
-            $gas_stmt = $conn->prepare($gas_sql);
-            $gas_stmt->bind_param("d", $gas);
-            $gas_stmt->execute();
-            $gas_stmt->close();
-            
-            // Commit transaction
-            $conn->commit();
-            
+        if ($stmt->execute()) {
             $response = [
                 'status' => 'success',
                 'message' => 'Sensor data recorded successfully',
                 'data' => [
                     'temperature' => $temperature,
                     'humidity' => $humidity,
-                    'gas' => $gas,
                     'timestamp' => time()
                 ]
             ];
-        } catch (Exception $e) {
-            // Rollback on error
-            $conn->rollback();
+        } else {
             $response = [
                 'status' => 'error',
-                'message' => 'Error recording sensor data: ' . $e->getMessage()
+                'message' => 'Error recording sensor data: ' . $stmt->error
             ];
         }
+        $stmt->close();
     } else {
         $response = [
             'status' => 'error',
-            'message' => 'No file, sensor data, or OCR text provided',
-            'received' => $_POST
+            'message' => 'No file, sensor data, or OCR text provided'
         ];
     }
 } else {

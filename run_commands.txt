@@ -1,0 +1,15 @@
+Các lệnh cần chạy theo thứ tự:
+
+1. Xóa cache và build cũ:
+flutter clean
+
+2. Cài đặt lại dependencies:
+flutter pub get
+
+3. Chạy ứng dụng:
+flutter run
+
+4. Nếu gặp lỗi, kiểm tra:
+- Log lỗi trong terminal
+- Debug console trong IDE
+- Network tab trong browser devtools (cho web)
