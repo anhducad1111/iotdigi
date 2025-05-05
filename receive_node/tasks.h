@@ -5,84 +5,80 @@
 #include <LoRa.h>
 #include "config.h"
 
-// Struct for parsed LoRa data
-struct LoRaData {
-    String ocrReading;
-    float waterBill;
-    String address;
-    bool isValid;
+// Data structure for parsed LoRa packet
+struct WaterData {
+    String reading;      // Water meter reading
+    float bill;         // Water bill amount
+    String address;     // Location address
 };
+
+// Global variables
+extern WaterData currentData;
 
 // Function declarations
 bool initLoRa();
-LoRaData parseLoRaPacket(const String& packet);
-void displayData(const LoRaData& data);
-bool validatePacket(const String& packet);
+bool parseLoRaPacket(String packet, WaterData* data);
+void printWaterData(const WaterData& data);
 
-// Initialize LoRa module
+// Initialize LoRa
 bool initLoRa() {
     LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
     if (!LoRa.begin(LORA_FREQ)) {
         Serial.println("LoRa init failed!");
         return false;
     }
-    Serial.println("LoRa OK");
+    Serial.println("LoRa init successful");
     return true;
 }
 
-// Validate received packet
-bool validatePacket(const String& packet) {
-    if (packet.length() < MIN_PACKET_SIZE || packet.length() > MAX_PACKET_SIZE) {
-        Serial.println("Invalid packet size");
-        return false;
-    }
+// Parse LoRa packet
+bool parseLoRaPacket(String packet, WaterData* data) {
+    if (!data) return false;
     
-    // Check for two commas
-    int commaCount = 0;
-    for (unsigned int i = 0; i < packet.length(); i++) {
-        if (packet[i] == ',') commaCount++;
-    }
-    if (commaCount != 2) {
-        Serial.println("Invalid packet format");
-        return false;
-    }
-    
-    return true;
-}
-
-// Parse LoRa packet into structured data
-LoRaData parseLoRaPacket(const String& packet) {
-    LoRaData data = {"", 0.0, "", false};
-    
-    if (!validatePacket(packet)) {
-        return data;
-    }
-    
+    // Find commas
     int firstComma = packet.indexOf(',');
+    if (firstComma < 0) return false;
+    
     int secondComma = packet.indexOf(',', firstComma + 1);
-    
-    if (firstComma > 0 && secondComma > firstComma) {
-        data.ocrReading = packet.substring(0, firstComma);
-        data.waterBill = packet.substring(firstComma + 1, secondComma).toFloat();
-        data.address = packet.substring(secondComma + 1);
-        data.isValid = true;
+    if (secondComma < 0) return false;
+
+    // Extract fields
+    String reading = packet.substring(0, firstComma);
+    String billStr = packet.substring(firstComma + 1, secondComma);
+    String address = packet.substring(secondComma + 1);
+
+    // Clean up fields
+    reading.trim();
+    billStr.trim();
+    address.trim();
+
+    // Validate fields
+    if (reading.length() == 0 || billStr.length() == 0 || address.length() == 0) {
+        return false;
     }
-    
-    return data;
+
+    // Store results
+    data->reading = reading;
+    data->bill = billStr.toFloat();
+    data->address = address;
+
+    return true;
 }
 
-// Display parsed data nicely formatted
-void displayData(const LoRaData& data) {
-    if (!data.isValid) {
-        Serial.println("Invalid data - cannot display");
-        return;
-    }
+// Print water data
+void printWaterData(const WaterData& data) {
+    Serial.println("\n=== Water Data ===");
+    Serial.print("Reading: "); 
+    Serial.print(data.reading);
+    Serial.println(" m³");
     
-    Serial.println("\n=== Received Data ===");
-    Serial.println("OCR Reading: " + data.ocrReading + " m³");
-    Serial.printf("Water Bill: %.1f%s VND\n", data.waterBill/CURRENCY_DIVISOR, CURRENCY_SYMBOL);
-    Serial.println("Address: " + data.address);
-    Serial.println("===================\n");
+    Serial.print("Bill: ");
+    Serial.print(data.bill, 0);
+    Serial.println(" VND");
+    
+    Serial.print("Address: ");
+    Serial.println(data.address);
+    Serial.println("================\n");
 }
 
 #endif

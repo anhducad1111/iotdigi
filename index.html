@@ -1,21 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Stream</title>
-    <!-- Bootstrap CSS -->
+    <title>IoT Dashboard</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Animate.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
+        /* Keep existing styles */
         body {
             padding-top: 20px;
             background: linear-gradient(to right, #bffaff, #5791a4);
-            color: #fff;
+            color: #333;
         }
 
         #video-stream {
@@ -23,141 +20,138 @@
             height: auto;
             border: 5px solid #fff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transform: rotate(180deg); /* Thêm dòng này để xoay video */
+            transform: rotate(180deg);
         }
 
-        .slider {
-            width: 100%;
-        }
-
-        .alert {
-            margin-top: 20px;
-        }
+        .slider { width: 100%; }
 
         .sensor-card,
         .ocr-card {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(255, 255, 255, 0.9);
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s;
-        }
-
-        .sensor-card:hover,
-        .ocr-card:hover {
-            transform: scale(1.05);
         }
 
         .sensor-value {
             font-size: 2rem;
             font-weight: bold;
-            color: #7ef8f4;
+            color: #2c7a91;
         }
 
         .ocr-text {
             font-size: 1.5rem;
-            color: #fff;
+            color: #2c7a91;
         }
 
-        h1,
-        h3 {
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        .alert {
+            margin-top: 20px;
+            animation: fadeIn 0.5s;
         }
 
         .btn-ocr {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 2px solid #fff;
-            color: #fff;
-            padding: 8px 20px;
+            background-color: #2c7a91;
+            border: none;
+            color: white;
+            padding: 10px;
             border-radius: 20px;
-            transition: all 0.3s;
-            margin-top: 10px;
             width: 100%;
+            margin-top: 10px;
         }
 
-        .btn-ocr:hover {
-            background-color: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
-        }
-
-        .btn-ocr:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-ocr .spinner-border {
-            width: 1rem;
-            height: 1rem;
-            margin-right: 5px;
+        #leak-alert {
+            background-color: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            animation: pulse 2s infinite;
             display: none;
         }
 
-        .btn-ocr.processing .spinner-border {
+        #leak-alert.show {
+            display: block;
+        }
+
+        .threshold-input {
+            width: 80px;
             display: inline-block;
+            margin: 0 5px;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
     </style>
 </head>
-
 <body>
     <div class="container">
         <div class="row">
             <div class="col-md-8 text-center">
-                <h1 class="display-4 animate__animated animate__fadeInDown">Video Stream từ Camera</h1>
-                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream"
-                    class="img-fluid rounded animate__animated animate__zoomIn">
+                <h1 class="display-4">Water Meter Monitor</h1>
+                <img id="video-stream" src="video_stream/uploaded_image.jpg" alt="Camera Stream" class="img-fluid rounded">
                 <input type="range" min="0" max="4" value="0" class="slider mt-3" id="brightness-slider">
-            </div>
-            <div class="col-md-4">
-                <div class="sensor-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
-                    <div class="sensor-value">
-                        <span id="temperature">--</span> °C
-                    </div>
-                </div>
-                <div class="sensor-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-tint"></i> Humidity</h3>
-                    <div class="sensor-value">
-                        <span id="humidity">--</span> %
-                    </div>
-                </div>
-                <div class="sensor-card animate__animated animate__fadeInRight">
-                    <h3><i class="fas fa-smog"></i> Gas Concentration</h3>
-                    <div class="sensor-value">
-                        <span id="gas">--</span> %
-                        <div class="alert alert-danger gas-alert" style="display:none">
-                            <i class="fas fa-exclamation-triangle"></i> Gas level above threshold!
+                <div class="mt-3 card p-3">
+                    <h5>Water Leak Detection</h5>
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">Alert if usage exceeds</span>
+                        </div>
+                        <input type="number" id="waterThreshold" class="form-control" value="50" min="1">
+                        <div class="input-group-append">
+                            <span class="input-group-text">m³ in 24 hours</span>
                         </div>
                     </div>
                 </div>
-                <div class="ocr-card animate__animated animate__fadeInRight">
+            </div>
+            <div class="col-md-4">
+                <div class="sensor-card">
+                    <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
+                    <div class="sensor-value">
+                        <span id="temperature">--</span>°C
+                    </div>
+                </div>
+                <div class="sensor-card">
+                    <h3><i class="fas fa-tint"></i> Humidity</h3>
+                    <div class="sensor-value">
+                        <span id="humidity">--</span>%
+                    </div>
+                </div>
+                <div class="sensor-card">
+                    <h3><i class="fas fa-cloud"></i> Air Quality</h3>
+                    <div class="sensor-value">
+                        <span id="air-quality">--</span> PPM
+                    </div>
+                </div>
+                <div class="ocr-card">
                     <h3><i class="fas fa-tachometer-alt"></i> Water Meter</h3>
                     <div class="ocr-text">
                         <span id="ocr-text">--</span> m³
                     </div>
                     <button id="trigger-ocr" class="btn btn-ocr">
-                        <span class="spinner-border" role="status"></span>
-                        <i class="fas fa-sync"></i> Take Reading
+                        <i class="fas fa-camera"></i> Take Reading
                     </button>
                 </div>
-                <div class="ocr-card animate__animated animate__fadeInRight">
+                <div class="ocr-card">
                     <h3><i class="fas fa-money-bill-wave"></i> Water Bill</h3>
                     <div class="ocr-text">
                         <span id="water-bill">--</span>K VNĐ
                     </div>
                 </div>
-                <div id="leak-alert" style="display: none; color: red; font-weight: bold;">
-                    ⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!
+                <div id="leak-alert" class="alert">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="leak-message"></span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Video stream update
         setInterval(function () {
@@ -166,127 +160,114 @@
         }, 100);
 
         // Brightness control
-        let previous_brightness = -1;
         const BRIGHTNESS_LEVELS = [0, 200, 400, 600, 800];
-        const BRIGHTNESS_URL = 'http://192.168.137.223:81/slider?value=';
-        const OCR_TRIGGER_URL = 'http://192.168.137.223:82/trigger';
+        const BRIGHTNESS_URL = 'http://192.168.137.66:81/slider?value=';
+        const OCR_TRIGGER_URL = 'http://192.168.137.66:82/trigger';
 
-        const slider = document.getElementById('brightness-slider');
-        slider.addEventListener('input', function () {
-            const level = slider.value;
-            const brightness_value = BRIGHTNESS_LEVELS[level];
-            fetch(BRIGHTNESS_URL + brightness_value);
+        document.getElementById('brightness-slider').addEventListener('input', function () {
+            const level = this.value;
+            const brightness = BRIGHTNESS_LEVELS[level];
+            fetch(BRIGHTNESS_URL + brightness);
         });
 
-        // Manual OCR trigger
-        const ocrButton = document.getElementById('trigger-ocr');
-        let isProcessingOcr = false;
-
-        ocrButton.addEventListener('click', async function() {
-            if (isProcessingOcr) return;
-
-            try {
-                isProcessingOcr = true;
-                ocrButton.classList.add('processing');
-                ocrButton.disabled = true;
-
-                const response = await fetch(OCR_TRIGGER_URL);
-                if (!response.ok) {
-                    throw new Error('OCR trigger failed');
-                }
-
-                // Wait a moment for processing
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                // Update the display
-                updateSensorData();
-                
-            } catch (error) {
-                console.error('Error triggering OCR:', error);
-            } finally {
-                isProcessingOcr = false;
-                ocrButton.classList.remove('processing');
-                ocrButton.disabled = false;
-            }
+        // OCR trigger
+        document.getElementById('trigger-ocr').addEventListener('click', function() {
+            this.disabled = true;
+            fetch(OCR_TRIGGER_URL)
+                .then(() => setTimeout(updateSensorData, 2000))
+                .finally(() => this.disabled = false);
         });
 
-        // Sensor data update
+        // Update sensor data
         function updateSensorData() {
             fetch('get.php')
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data);
                     if (data.status === 'success') {
-                        // Update sensor readings
-                        if (data.latest_sensor_reading) {
-                            document.getElementById('temperature').textContent = data.latest_sensor_reading.temperature;
-                            document.getElementById('humidity').textContent = data.latest_sensor_reading.humidity;
-                            
-                            // Update gas concentration and check threshold
-                            const gasConcentration = parseFloat(data.latest_sensor_reading.gas_concentration);
-                            document.getElementById('gas').textContent = data.latest_sensor_reading.gas_concentration;
-                            
-                            // Check gas threshold (1%)
-                            if (gasConcentration > 1.0) {
-                                displayGasAlert(gasConcentration);
-                            } else {
-                                hideGasAlert();
-                            }
+                        // Update sensors
+                        if (data.sensor_data.latest) {
+                            document.getElementById('temperature').textContent = 
+                                data.sensor_data.latest.temperature;
+                            document.getElementById('humidity').textContent = 
+                                data.sensor_data.latest.humidity;
+                            document.getElementById('air-quality').textContent = 
+                                data.sensor_data.latest.air_quality;
                         }
 
                         // Update OCR and water bill
-                        if (data.latest_ocr_result) {
-                            document.getElementById('ocr-text').textContent = data.latest_ocr_result.ocr_text;
-                        }
-                        // Update water bill if available
-                        if (data.latest_ocr_result && data.latest_ocr_result.water_bill) {
-                            const billInK = (data.latest_ocr_result.water_bill / 1000).toFixed(1);
-                            document.getElementById('water-bill').textContent = billInK;
+                        if (data.water_data.latest_reading) {
+                            document.getElementById('ocr-text').textContent = 
+                                data.water_data.latest_reading.ocr_text;
+                            if (data.water_data.latest_reading.water_bill) {
+                                document.getElementById('water-bill').textContent = 
+                                    (data.water_data.latest_reading.water_bill / 1000).toFixed(1);
+                            }
                         }
 
-                        // Handle leak alert
-                        if (data.leak_alert) {
-                            displayLeakAlert();
-                        } else {
-                            hideLeakAlert();
+                        // Check for water leak
+                        if (data.water_data.all_readings && data.water_data.all_readings.length > 1) {
+                            const threshold = parseFloat(document.getElementById('waterThreshold').value);
+                            const now = new Date();
+                            const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
+                            
+                            // Get readings from last 24 hours
+                            const recentReadings = data.water_data.all_readings.filter(reading => {
+                                return new Date(reading.timestamp) >= twentyFourHoursAgo;
+                            });
+
+                            if (recentReadings.length >= 2) {
+                                // Find min and max readings
+                                const minReading = recentReadings.reduce((min, reading) => 
+                                    parseFloat(reading.ocr_text) < parseFloat(min.ocr_text) ? reading : min
+                                , recentReadings[0]);
+                                
+                                const maxReading = recentReadings.reduce((max, reading) => 
+                                    parseFloat(reading.ocr_text) > parseFloat(max.ocr_text) ? reading : max
+                                , recentReadings[0]);
+
+                                // Calculate usage
+                                const minValue = parseFloat(minReading.ocr_text);
+                                const maxValue = parseFloat(maxReading.ocr_text);
+                                const usage = maxValue - minValue;
+
+                                const leakAlert = document.getElementById('leak-alert');
+                                const leakMessage = document.getElementById('leak-message');
+                                
+                                if (usage > threshold) {
+                                    leakAlert.classList.add('show');
+                                    leakMessage.textContent = 
+                                        `Total usage ${usage.toFixed(1)}m³ in last 24h exceeds threshold (${threshold}m³)`;
+                                } else {
+                                    leakAlert.classList.remove('show');
+                                }
+                            }
                         }
+
+                        // Print debug info
+                        console.log("Latest data:", {
+                            latest_reading: data.water_data.latest_reading,
+                            first_reading: data.water_data.first_reading,
+                            all_readings: data.water_data.all_readings,
+                            debug: data.water_data.debug
+                        });
                     }
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(console.error);
         }
 
-        function displayGasAlert(concentration) {
-            const existingAlert = document.querySelector('.gas-alert');
-            if (!existingAlert) {
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-danger gas-alert animate__animated animate__fadeIn';
-                alert.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Warning: Gas concentration (${concentration}%) exceeds safe limit (1%)!`;
-                document.getElementById('gas').closest('.sensor-card').after(alert);
-            }
-        }
+        // Save threshold when changed
+        document.getElementById('waterThreshold').addEventListener('change', function() {
+            const value = this.value;
+            localStorage.setItem('waterThreshold', value);
+        });
 
-        function hideGasAlert() {
-            const alert = document.querySelector('.gas-alert');
-            if (alert) {
-                alert.remove();
-            }
-        }
-
-        function displayLeakAlert() {
-            const alertBox = document.getElementById('leak-alert');
-            alertBox.style.display = 'block';
-            alertBox.textContent = '⚠️ Cảnh báo: Có dấu hiệu rò rỉ nước trong vòng 24 giờ qua!';
-        }
-
-        function hideLeakAlert() {
-            const alertBox = document.getElementById('leak-alert');
-            alertBox.style.display = 'none';
-        }
-        
-        // Update sensor data every 5 seconds
-        updateSensorData();
-        setInterval(updateSensorData, 5000);
+        // Load saved threshold and start updates
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedThreshold = localStorage.getItem('waterThreshold') || '50';
+            document.getElementById('waterThreshold').value = savedThreshold;
+            updateSensorData();
+            setInterval(updateSensorData, 5000);
+        });
     </script>
 </body>
-
 </html>

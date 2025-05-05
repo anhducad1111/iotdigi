@@ -3,28 +3,26 @@
 #include "config.h"
 #include "tasks.h"
 
+// Global variables required by tasks.h
+WaterData currentData = {"0", 0.0, ""};
+
 void setup() {
-    // Start serial at bootloader baud rate
-    Serial.begin(74880);
-    delay(100);
+    Serial.begin(115200);
+    while (!Serial);
     
-    // Switch to normal baud rate
-    Serial.begin(SERIAL_BAUD);
-    delay(2000);  // Wait for stability
+    Serial.println("\nStarting LoRa Receiver...");
+
+    // Initialize SPI for LoRa
+    SPI.begin();
     
-    Serial.println("\nLoRa Receiver Starting...");
-    
-    // Initialize LoRa module
+    // Initialize LoRa
     if (!initLoRa()) {
-        Serial.println("Initialization failed!");
-        while (1);  // Halt if LoRa fails
+        Serial.println("LoRa initialization failed!");
+        while (1); // Stop if failed
     }
-    
-    Serial.println("Ready to receive data!");
 }
 
 void loop() {
-    // Check for incoming LoRa packet
     int packetSize = LoRa.parsePacket();
     if (packetSize) {
         // Read packet
@@ -33,16 +31,18 @@ void loop() {
             received += (char)LoRa.read();
         }
         
-        // Log raw data for debugging
-        Serial.print("Raw LoRa: ");
-        Serial.println(received);
-        
-        // Parse and display structured data
-        LoRaData data = parseLoRaPacket(received);
-        if (data.isValid) {
-            displayData(data);
+        // Print raw data first
+        Serial.println("\nReceived Packet:");
+        Serial.println("Raw: " + received);
+        Serial.printf("RSSI: %d dBm\n", LoRa.packetRssi());
+        Serial.printf("SNR: %.1f dB\n", LoRa.packetSnr());
+
+        // Parse and display data
+        if (parseLoRaPacket(received, &currentData)) {
+            printWaterData(currentData);
         } else {
-            Serial.println("Failed to parse packet!");
+            Serial.println("Error: Invalid packet format");
         }
+        Serial.println(); // Extra line for readability
     }
 }

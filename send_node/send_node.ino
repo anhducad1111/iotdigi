@@ -1,83 +1,66 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
-#include <SPI.h>
 #include <LoRa.h>
 #include <DHT.h>
+#include <SPI.h>
 #include "config.h"
 #include "tasks.h"
 
-// Global variables (required by tasks.h)
+// Global variables required by tasks.h
 DHT dht(DHT_PIN, DHTTYPE);
-float lastTemp = 0;
-float lastHum = 0;
-float lastGasReading = 0;
-String lastOcrValue = "0";
-float lastBill = 0;
-int currentAddressIndex = 0;
+SensorData sensorData = {0, 0, 0};  // temp, humidity, air quality
+WaterData waterData = {"0", 0.0, FIXED_ADDRESS}; // reading, bill, address
 
 // Timing trackers
+unsigned long lastReadTime = 0;
 unsigned long lastPostTime = 0;
 unsigned long lastLoraTime = 0;
-unsigned long lastGasTime = 0;
-unsigned long lastSensorTime = 0;
 
 void setup() {
-    // Start Serial at bootloader baud rate
+    // Initialize serial with proper bootloader rate
     Serial.begin(74880);
     delay(100);
-    
-    // Switch to normal baud rate
     Serial.begin(115200);
-    delay(3000);  // Give more time for stability
-    
+    delay(1000);
     Serial.println("\nInitializing...");
-    Serial.println("Note: DHT22 requires 10kΩ pull-up resistor on D4!");
     
-    // Initialize sensors
-    dht.begin();
-    pinMode(MQ2_PIN, INPUT);
-    
-    // Initialize LoRa with our pins
-    LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
-    if (!LoRa.begin(921E6)) {
-        Serial.println("LoRa init failed!");
-        while (1);
+    // Initialize hardware
+    if (!initWiFi() || !initLoRa() || !initSensors()) {
+        Serial.println("Initialization failed!");
+        while (1); // Stop if any init fails
     }
-    Serial.println("LoRa OK");
-    
-    // Connect WiFi
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connecting WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\nWiFi OK");
-    
+
     // Initial readings
-    readSensors();
-    Serial.println("Setup complete!");
+    readSensors(&sensorData);
+    printSensorData(sensorData);
 }
 
 void loop() {
     unsigned long now = millis();
 
-    // Read sensors every 2 seconds
-    if (now - lastSensorTime >= SENSOR_INTERVAL) {
-        lastSensorTime = now;
-        readSensors();
+    // Read sensors (every 2 seconds)
+    if (now - lastReadTime >= SENSOR_INTERVAL) {
+        lastReadTime = now;
+        if (readSensors(&sensorData)) {
+            printSensorData(sensorData);
+        }
     }
 
-    // Post data every 10 seconds
+    // Post to server (every 10 seconds)
     if (now - lastPostTime >= POST_INTERVAL) {
         lastPostTime = now;
-        postSensorData();
+        postSensorData(sensorData);
     }
 
-    // Get OCR and send LoRa every 10 seconds
+    // Get OCR and send via LoRa (every 10 seconds)
     if (now - lastLoraTime >= LORA_INTERVAL) {
         lastLoraTime = now;
-        getOcrAndSendLora();
+        if (getOcrFromServer(&waterData)) {
+            sendLoraData(waterData);
+        } else {
+            Serial.println("Failed to get OCR data, sending last known values");
+            sendLoraData(waterData);  // Send last known values anyway
+        }
     }
 }

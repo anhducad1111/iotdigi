@@ -8,136 +8,177 @@
 #include <DHT.h>
 #include "config.h"
 
+// Data structures
+struct SensorData {
+    float temperature;
+    float humidity;
+    float airQuality;
+};
+
+struct WaterData {
+    String reading;
+    float bill;
+    String address;
+};
+
 // Global variables
 extern DHT dht;
-extern float lastTemp;
-extern float lastHum;
-extern float lastGasReading;
-extern String lastOcrValue;
-extern float lastBill;
-extern int currentAddressIndex;
+extern SensorData sensorData;
+extern WaterData waterData;
 
 // Function declarations
-void readSensors();
-void postSensorData();
-void getOcrAndSendLora();
-void printSensorData();
-String getNextAddress();
+bool initWiFi();
+bool initLoRa();
+bool initSensors();
+bool readSensors(SensorData* data);
+bool postSensorData(const SensorData& data);
+bool getOcrFromServer(WaterData* data);
+bool sendLoraData(const WaterData& data);
+void printSensorData(const SensorData& data);
 
-// Print sensor data to Serial
-void printSensorData() {
-    Serial.println("\n=== Sensor Data ===");
-    Serial.printf("Temperature: %.1f°C\n", lastTemp);
-    Serial.printf("Humidity: %.1f%%\n", lastHum);
-    Serial.printf("Gas Level: %.1f%%\n", lastGasReading);
-    if (lastGasReading > GAS_THRESHOLD) {
-        Serial.println("!! Gas Alert !!");
+// Function implementations
+bool initWiFi() {
+    Serial.print("Connecting to WiFi");
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
     }
-    Serial.printf("OCR Value: %s\n", lastOcrValue.c_str());
-    Serial.printf("Water Bill: %.0f VND\n", lastBill);
-    Serial.printf("WiFi: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
-    Serial.println("================");
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi connected!");
+        return true;
+    }
+    
+    Serial.println("\nWiFi connection failed!");
+    return false;
 }
 
-// Read sensor values
-void readSensors() {
+bool initLoRa() {
+    LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
+    if (!LoRa.begin(LORA_FREQ)) {
+        Serial.println("LoRa init failed!");
+        return false;
+    }
+    Serial.println("LoRa OK");
+    return true;
+}
+
+bool initSensors() {
+    dht.begin();
+    pinMode(MQ135_PIN, INPUT);
+    Serial.println("Sensors initialized");
+    return true;
+}
+
+bool readSensors(SensorData* data) {
+    if (!data) return false;
+
     float newTemp = dht.readTemperature();
     float newHum = dht.readHumidity();
     
-    if (!isnan(newTemp) && !isnan(newHum)) {
-        lastTemp = newTemp;
-        lastHum = newHum;
-        printSensorData();
+    if (isnan(newTemp) || isnan(newHum)) {
+        Serial.println("DHT reading error!");
+        return false;
     }
 
-    // Read gas sensor
-    lastGasReading = analogRead(MQ2_PIN) / 1023.0 * 100.0;
-    if (lastGasReading > GAS_THRESHOLD) {
-        Serial.printf("WARNING: Gas Level %.1f%%!\n", lastGasReading);
-    }
+    data->temperature = newTemp;
+    data->humidity = newHum;
+    data->airQuality = analogRead(MQ135_PIN) / 1023.0 * 100.0;
+
+    return true;
 }
 
-// Get fixed address
-String getNextAddress() {
-    return FIXED_ADDRESS;
-}
-
-// Post sensor data to server
-void postSensorData() {
+bool postSensorData(const SensorData& data) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi not connected!");
-        return;
+        return false;
     }
     
     HTTPClient http;
     WiFiClient client;
+    
     http.begin(client, POST_URL);
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
     
-    String data = "temp=" + String(lastTemp, 1) + 
-                 "&humidity=" + String(lastHum, 1) + 
-                 "&gas=" + String(lastGasReading, 1);
-                 
-    int httpCode = http.POST(data);
+    String postData = String("temp=") + data.temperature + 
+                     "&humidity=" + data.humidity + 
+                     "&air_quality=" + data.airQuality;
+                     
+    int httpCode = http.POST(postData);
     
     if (httpCode > 0) {
+        Serial.printf("[HTTP] POST: %d\n", httpCode);
         String response = http.getString();
-        Serial.printf("[HTTP] POST Code: %d\nResponse: ", httpCode);
         Serial.println(response);
-        
-        StaticJsonDocument<512> doc;
-        DeserializationError error = deserializeJson(doc, response);
-        if (!error) {
-            String status = doc["status"];
-            if (status != "success") {
-                Serial.println("Warning: Server reported error!");
-            }
-        }
-    } else {
-        Serial.printf("[HTTP] POST failed: %s\n", http.errorToString(httpCode).c_str());
+        http.end();
+        return httpCode == HTTP_CODE_OK;
     }
+    
+    Serial.printf("[HTTP] POST failed: %s\n", http.errorToString(httpCode).c_str());
     http.end();
+    return false;
 }
 
-// Get OCR result and send via LoRa
-void getOcrAndSendLora() {
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected!");
-        return;
-    }
+bool getOcrFromServer(WaterData* data) {
+    if (!data || WiFi.status() != WL_CONNECTED) return false;
     
     HTTPClient http;
     WiFiClient client;
+    
     http.begin(client, GET_URL);
     int httpCode = http.GET();
-
+    
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
         StaticJsonDocument<1024> doc;
-        DeserializationError error = deserializeJson(doc, payload);
         
-        if (!error) {
-            JsonObject ocr_result = doc["latest_ocr_result"];
-            String ocrValue = ocr_result["ocr_text"] | "0";
-            float bill = ocr_result["water_bill"] | 0.0f;
-            String address = getNextAddress();
+        DeserializationError error = deserializeJson(doc, payload);
+        if (!error && doc["status"] == "success") {
+            if (doc["water_data"]["latest_reading"].isNull()) {
+                Serial.println("No OCR data available");
+                http.end();
+                return false;
+            }
             
-            String loraPayload = ocrValue + "," + String(bill, 0) + "," + address;
-            LoRa.beginPacket();
-            LoRa.print(loraPayload);
-            LoRa.endPacket();
+            JsonObject latest = doc["water_data"]["latest_reading"];
+            data->reading = latest["ocr_text"].as<String>();
+            data->bill = latest["water_bill"].as<float>();
             
-            lastOcrValue = ocrValue;
-            lastBill = bill;
-            
-            Serial.println("LoRa: " + loraPayload);
-        } else {
-            Serial.println("JSON parse error!");
+            Serial.println("Got OCR data: " + data->reading + ", Bill: " + String(data->bill));
+            http.end();
+            return true;
         }
-    } else {
-        Serial.printf("[HTTP] GET failed: %s\n", http.errorToString(httpCode).c_str());
+        Serial.println("Invalid JSON response");
     }
+    
     http.end();
+    return false;
+}
+
+bool sendLoraData(const WaterData& data) {
+    String packet = data.reading + "," + String(data.bill, 0) + "," + data.address;
+    
+    LoRa.beginPacket();
+    LoRa.print(packet);
+    LoRa.endPacket();
+    
+    Serial.println("LoRa sent: " + packet);
+    return true;
+}
+
+void printSensorData(const SensorData& data) {
+    Serial.println("\n=== Sensor Data ===");
+    Serial.printf("Temperature: %.1f°C\n", data.temperature);
+    Serial.printf("Humidity: %.1f%%\n", data.humidity);
+    Serial.printf("Air Quality: %.1f PPM\n", data.airQuality);
+    if (data.airQuality > AIR_QUALITY_THRESHOLD) {
+        Serial.println("!! Poor Air Quality !!");
+    }
+    Serial.println("================");
 }
 
 #endif

@@ -7,10 +7,7 @@ $username = "root";
 $password = "";
 $dbname = "test";
 
-// Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
 if ($conn->connect_error) {
     die(json_encode([
         'status' => 'error',
@@ -20,12 +17,44 @@ if ($conn->connect_error) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['ocr_text']) || (json_decode(file_get_contents('php://input'), true)['ocr_text'] ?? null)) {
-        
+        // Handle OCR text
         $ocr_text = $_POST['ocr_text'] ?? json_decode(file_get_contents('php://input'), true)['ocr_text'];
-        if ($ocr_text !== 'none') {
-            $sql = "INSERT INTO ocr_results (ocr_text) VALUES (?)";
+        if ($ocr_text !== "none" && $ocr_text !== 'none') {
+            // Get first reading of current month
+            $current_month = date('Y-m');
+            $first_reading_sql = "SELECT ocr_text FROM ocr_results 
+                                WHERE DATE_FORMAT(timestamp, '%Y-%m') = '$current_month' 
+                                ORDER BY timestamp ASC LIMIT 1";
+            $first_result = $conn->query($first_reading_sql);
+            
+            // Calculate water bill if we have a first reading
+            $water_bill = 0;
+            $debug_info = [];
+            
+            if ($first_result->num_rows > 0) {
+                $first_row = $first_result->fetch_assoc();
+                $first_reading = intval($first_row['ocr_text']);
+                $curr_reading = intval($ocr_text);
+                $water_usage = $curr_reading - $first_reading;
+                $water_bill = calculate_water_bill($water_usage);
+                
+                $debug_info = [
+                    'first_reading' => $first_reading,
+                    'current_reading' => $curr_reading,
+                    'water_usage' => $water_usage,
+                    'month' => $current_month
+                ];
+            } else {
+                $debug_info = [
+                    'message' => 'First reading of month not found',
+                    'month' => $current_month,
+                    'query' => $first_reading_sql
+                ];
+            }
+            
+            $sql = "INSERT INTO ocr_results (ocr_text, water_bill) VALUES (?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("s", $ocr_text);
+            $stmt->bind_param("sd", $ocr_text, $water_bill);
     
             if ($stmt->execute()) {
                 $response = [
@@ -33,8 +62,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     'message' => 'OCR text recorded successfully',
                     'data' => [
                         'ocr_text' => $ocr_text,
+                        'water_bill' => $water_bill,
                         'timestamp' => time()
-                    ]
+                    ],
+                    'debug' => $debug_info
                 ];
             } else {
                 $response = [
@@ -68,51 +99,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ];
         }
     }
-    // Handle sensor data with gas reading
-    elseif (isset($_POST['temp']) && isset($_POST['humidity']) && isset($_POST['gas'])) {
+    // Handle sensor data
+    elseif (isset($_POST['temp']) && isset($_POST['humidity']) && isset($_POST['air_quality'])) {
         $temperature = floatval($_POST['temp']);
         $humidity = floatval($_POST['humidity']);
-        $gas = floatval($_POST['gas']);
+        $air_quality = floatval($_POST['air_quality']);
         
-        // Begin transaction
-        $conn->begin_transaction();
+        $sql = "INSERT INTO sensor_data (temperature, humidity, air_quality) VALUES (?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ddd", $temperature, $humidity, $air_quality);
         
-        try {
-            // Insert temperature and humidity
-            $dht_sql = "INSERT INTO dht_data (temperature, humidity, timestamp) VALUES (?, ?, NOW())";
-            $dht_stmt = $conn->prepare($dht_sql);
-            $dht_stmt->bind_param("dd", $temperature, $humidity);
-            $dht_stmt->execute();
-            $dht_stmt->close();
-            
-            // Insert gas reading with same timestamp
-            $gas_sql = "INSERT INTO gas_data (concentration, timestamp) VALUES (?, NOW())";
-            $gas_stmt = $conn->prepare($gas_sql);
-            $gas_stmt->bind_param("d", $gas);
-            $gas_stmt->execute();
-            $gas_stmt->close();
-            
-            // Commit transaction
-            $conn->commit();
-            
+        if ($stmt->execute()) {
             $response = [
                 'status' => 'success',
                 'message' => 'Sensor data recorded successfully',
                 'data' => [
                     'temperature' => $temperature,
                     'humidity' => $humidity,
-                    'gas' => $gas,
+                    'air_quality' => $air_quality,
                     'timestamp' => time()
                 ]
             ];
-        } catch (Exception $e) {
-            // Rollback on error
-            $conn->rollback();
+        } else {
             $response = [
                 'status' => 'error',
-                'message' => 'Error recording sensor data: ' . $e->getMessage()
+                'message' => 'Error recording sensor data: ' . $stmt->error
             ];
         }
+        $stmt->close();
     } else {
         $response = [
             'status' => 'error',
@@ -125,6 +139,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         'status' => 'error',
         'message' => 'Invalid request method'
     ];
+}
+
+function calculate_water_bill($usage) {
+    if ($usage <= 0) return 0;
+    $bill = 0;
+
+    // Bậc 1: 0-10m³, giá 5.973đ/m³
+    if ($usage <= 10) {
+        $bill = $usage * 5973;
+    }
+    // Bậc 2: 10-20m³, giá 7.052đ/m³
+    elseif ($usage <= 20) {
+        $bill = (10 * 5973) + (($usage - 10) * 7052);
+    }
+    // Bậc 3: 20-30m³, giá 8.699đ/m³
+    elseif ($usage <= 30) {
+        $bill = (10 * 5973) + (10 * 7052) + (($usage - 20) * 8699);
+    }
+    // Bậc 4: >30m³, giá 15.929đ/m³
+    else {
+        $bill = (10 * 5973) + (10 * 7052) + (10 * 8699) + (($usage - 30) * 15929);
+    }
+
+    // Add VAT 5%
+    $bill *= 1.05;
+    
+    // Add environmental fee (10% of water bill)
+    $bill *= 1.1;
+
+    return round($bill);
 }
 
 $conn->close();
